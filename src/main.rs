@@ -4,8 +4,11 @@ use std::collections::BTreeMap;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 use std::thread::sleep;
 use std::time::Duration;
+
+static ANSI_SUPPORTED: OnceLock<bool> = OnceLock::new();
 
 const ACCENT: (u8, u8, u8) = (153, 255, 255); 
 const DIM: (u8, u8, u8) = (138, 138, 138);
@@ -41,6 +44,37 @@ fn rule() {
         "{}",
         "_".repeat(78).truecolor(RULE_COLOR.0, RULE_COLOR.1, RULE_COLOR.2)
     );
+}
+
+fn ansi_supported() -> bool {
+    *ANSI_SUPPORTED.get_or_init(enable_windows_terminal)
+}
+
+#[cfg(windows)]
+fn enable_windows_terminal() -> bool {
+    use windows_sys::Win32::System::Console::{
+        GetConsoleMode, GetStdHandle, SetConsoleMode, SetConsoleOutputCP,
+        ENABLE_PROCESSED_OUTPUT, ENABLE_VIRTUAL_TERMINAL_PROCESSING, STD_OUTPUT_HANDLE,
+    };
+
+    unsafe {
+        SetConsoleOutputCP(65001);
+
+        let handle = GetStdHandle(STD_OUTPUT_HANDLE);
+        let mut mode: u32 = 0;
+        if GetConsoleMode(handle, &mut mode) == 0 {
+            return false;
+        }
+        SetConsoleMode(
+            handle,
+            mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT,
+        ) != 0
+    }
+}
+
+#[cfg(not(windows))]
+fn enable_windows_terminal() -> bool {
+    true
 }
 
 const BANNER: &str = r#"
@@ -87,8 +121,15 @@ fn save_favorites(favs: &Favorites) {
 }
 
 fn clear_screen() {
-    print!("\x1B[2J\x1B[1;1H");
-    let _ = io::stdout().flush();
+    if ansi_supported() {
+        print!("\x1B[2J\x1B[1;1H");
+        let _ = io::stdout().flush();
+    } else {
+        #[cfg(windows)]
+        let _ = Command::new("cmd").args(["/C", "cls"]).status();
+        #[cfg(not(windows))]
+        let _ = Command::new("clear").status();
+    }
 }
 
 fn header() {
@@ -412,6 +453,10 @@ fn yt_dlp_available() -> bool {
 }
 
 fn main() {
+    if !ansi_supported() {
+        colored::control::set_override(false);
+    }
+
     if !yt_dlp_available() {
         println!(
             "\n{} {}\n",
