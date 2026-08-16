@@ -210,7 +210,7 @@ fn manage_favorites(favs: &mut Favorites) {
                 "  {}",
                 dim("key combination (up to 3 letters!) ")
             ));
-            let key_in: String = key_in.chars().take(1).collect();
+            let key_in: String = key_in.chars().take(3).collect();
             let path_in = prompt(&format!("  {}", dim("folder path ")));
             let p = expand_user(path_in.trim());
             if !p.is_dir() {
@@ -302,7 +302,7 @@ fn manage_favorites(favs: &mut Favorites) {
         }
         "d" => {
             let key_in = prompt(&format!("  {}", dim("key to remove ")));
-            let key_in: String = key_in.chars().take(1).collect();
+            let key_in: String = key_in.chars().take(3).collect();
             if favs.remove(&key_in).is_some() {
                 save_favorites(favs);
                 println!("  {}", success("✓ removed"));
@@ -446,6 +446,7 @@ fn main() {
             break;
         } else if matches!(url.to_lowercase().as_str(), "m" | "manage" | "favorites") {
             manage_favorites(&mut favs);
+            continue;
         }
         if url.is_empty() {
             continue;
